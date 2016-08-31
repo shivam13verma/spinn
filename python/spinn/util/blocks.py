@@ -262,6 +262,45 @@ def LSTMLayer(lstm_prev, inp, inp_dim, full_memory_dim, vs, name="lstm", initial
     return T.concatenate([h_t, c_t], axis=1)
 
 
+def GRULayer(h_prev, inp, inp_dim, full_memory_dim, vs, name="gru", initializer=None):
+    hidden_dim = full_memory_dim
+
+    # gate biases
+    # TODO(mrdrozdov): use b (bias) same as is done in LSTM
+    # b = vs.add_param("%s_b" % name, (hidden_dim * 3,),
+    #                  initializer=GRUBiasInitializer())
+
+    def slice_gate(gate_data, i):
+        return gate_data[:, i * hidden_dim:(i + 1) * hidden_dim]
+
+    # Compute and slice gate values
+    # input -> hidden mapping
+    i2h = Linear(inp, inp_dim, hidden_dim * 3, vs,
+                   name="%s/inp/linear" % name,
+                   initializer=initializer, use_bias=False)
+    # hidden -> hidden mapping
+    h2h = Linear(h_prev, hidden_dim, hidden_dim * 3, vs,
+                    name="%s/hid/linear" % name,
+                    initializer=initializer, use_bias=False)
+
+    gates = i2h[:, 0:2*hidden_dim] + h2h[:, 0:2*hidden_dim]
+
+    z_gate = gates[:, 0:hidden_dim]
+    r_gate = gates[:, hidden_dim:2*hidden_dim]
+
+    # Apply nonlinearities
+    z_gate = T.nnet.sigmoid(z_gate)
+    r_gate = T.nnet.sigmoid(r_gate)
+
+    i2h_gate = i2h[:, 2*hidden_dim:3*hidden_dim]
+    h2h_gate = h2h[:, 2*hidden_dim:3*hidden_dim]
+
+    h_t = T.tanh(i2h_gate + r_gate * h2h_gate)
+    h_next = h_prev + z_gate * (h_t - h_prev)
+
+    return T.concatenate([h_next], axis=1)
+
+
 def MLP(inp, inp_dim, outp_dim, vs, layer=ReLULayer, hidden_dims=None,
         name="mlp", initializer=None):
     if hidden_dims is None:
