@@ -71,7 +71,7 @@ if [ ! -d "$SNLI_DIR" ]; then
     unzip -d .. snli_1.0.zip && rm snli_1.0.zip
 fi
 
-export PYTHONPATH=../python
+export PYTHONPATH=../python:$PYTHONPATH
 export THEANO_FLAGS="allow_gc=False,cuda.root=/usr/bin/cuda,warn_float64=warn,device=gpu,floatX=float32,$THEANO_FLAGS"
 echo "THEANO_FLAGS: $THEANO_FLAGS"
 
