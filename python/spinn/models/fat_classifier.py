@@ -77,7 +77,10 @@ def build_sentence_model(cls, vocab_size, seq_length, tokens, transitions,
         compose_network = None
         embedding_projection_network = None
     else:
-        if FLAGS.lstm_composition:
+        if FLAGS.use_gru:
+            compose_network = partial(util.TreeGRULayer,
+                                      initializer=util.HeKaimingInitializer())
+        elif FLAGS.lstm_composition:
             compose_network = partial(util.TreeLSTMLayer,
                                       initializer=util.HeKaimingInitializer())
         else:
@@ -111,7 +114,7 @@ def build_sentence_model(cls, vocab_size, seq_length, tokens, transitions,
         use_input_batch_norm=False)
 
     # Extract top element of final stack timestep.
-    if FLAGS.lstm_composition or cls is spinn.plain_rnn.RNN:
+    if FLAGS.lstm_composition or cls is spinn.plain_rnn.RNN or FLAGS.use_gru:
         sentence_vector = sentence_model.final_representations[:,:FLAGS.model_dim / 2].reshape((-1, FLAGS.model_dim / 2))
         sentence_vector_dim = FLAGS.model_dim / 2
     else:
@@ -165,7 +168,10 @@ def build_sentence_pair_model(cls, vocab_size, seq_length, tokens, transitions,
         compose_network = None
         embedding_projection_network = None
     else:
-        if FLAGS.lstm_composition:
+        if FLAGS.use_gru:
+            compose_network = partial(util.TreeGRULayer,
+                                      initializer=util.HeKaimingInitializer())
+        elif FLAGS.lstm_composition:
             compose_network = partial(util.TreeLSTMLayer,
                                       initializer=util.HeKaimingInitializer())
         else:
