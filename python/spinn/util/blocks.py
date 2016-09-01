@@ -227,13 +227,17 @@ def TreeGRULayer(h_prev, external_state, full_memory_dim, vs, name="tree_lstm", 
     assert isinstance(h_prev, tuple)
     l_h_prev, r_h_prev = h_prev
 
-    real_shape = (hidden_dim * 2, hidden_dim * 6)
+    real_shape = (hidden_dim * 2, hidden_dim * 2)
     initializer_children = partial(initializer or vs.default_initializer,
                                    real_shape=real_shape)
-    W_l = vs.add_param("%s/W_l" % name, (hidden_dim, hidden_dim * 6),
+    W_l = vs.add_param("%s/W_l" % name, (hidden_dim, hidden_dim * 2),
                        initializer=initializer_children)
-    W_r = vs.add_param("%s/W_r" % name, (hidden_dim, hidden_dim * 6),
+    W_r = vs.add_param("%s/W_r" % name, (hidden_dim, hidden_dim * 2),
                        initializer=initializer_children)
+    U = vs.add_param("%s/U" % name, (hidden_dim, hidden_dim),
+                       initializer=initializer)
+    V = vs.add_param("%s/V" % name, (hidden_dim, hidden_dim),
+                       initializer=initializer)
     # TODO(mrdrozdov): Implement tracking LSTM for TreeGRU.
     # if external_state_dim > 0:
     #     W_ext = vs.add_param("%s/W_ext" % name, (external_state_dim, hidden_dim * 5),
@@ -245,27 +249,24 @@ def TreeGRULayer(h_prev, external_state, full_memory_dim, vs, name="tree_lstm", 
     def slice_gate(gate_data, i):
         return gate_data[:, i * hidden_dim:(i + 1) * hidden_dim]
 
-    X_l = W_l[:, 0:4 * hidden_dim]
-    X_r = W_r[:, 0:4 * hidden_dim]
-    U_l, V_l = [slice_gate(W_l, i) for i in range(4,6)]
-    U_r, V_r = [slice_gate(W_r, i) for i in range(4,6)]
+    X_l = W_l[:, 0:2 * hidden_dim]
+    X_r = W_r[:, 0:2 * hidden_dim]
+    # U = slice_gate(W_l, 2) # this is not intuitive. borrowing from W_l, but not left related.
+    # V = slice_gate(W_r, 2) # this is not intuitive. borrowing from W_r, but not right related.
 
     gates = T.dot(l_h_prev, X_l) + T.dot(r_h_prev, X_r)
 
     # Compute and slice gate values
-    r_l_gate, r_r_gate, z_l_gate, z_r_gate = [slice_gate(gates, i) for i in range(4)]
+    r_gate, z_gate = [slice_gate(gates, i) for i in range(2)]
 
     # Apply nonlinearities
-    r_l_gate = T.nnet.sigmoid(r_l_gate)
-    r_r_gate = T.nnet.sigmoid(r_r_gate)
-    z_l_gate = T.nnet.sigmoid(z_l_gate)
-    z_r_gate = T.nnet.sigmoid(z_r_gate)
+    r_gate = T.nnet.sigmoid(r_gate)
+    z_gate = T.nnet.sigmoid(z_gate)
 
     # Compute new hidden values
-    h_t_l = T.tanh(U_l + r_l_gate * V_l)
-    h_t_r = T.tanh(U_r + r_r_gate * V_r)
-    h_next = l_h_prev + z_l_gate * (h_t_l - l_h_prev) + \
-             r_h_prev + z_r_gate * (h_t_r - r_h_prev)
+    h_t = T.tanh(U + r_gate * V)
+    h_prev_sum = l_h_prev + r_h_prev
+    h_next = h_prev_sum + z_gate * (h_t - h_prev_sum)
 
     return T.concatenate([h_next], axis=1)
 
