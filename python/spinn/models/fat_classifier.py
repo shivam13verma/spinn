@@ -77,12 +77,13 @@ def build_sentence_model(cls, vocab_size, seq_length, tokens, transitions,
         compose_network = None
         embedding_projection_network = None
     else:
-        if FLAGS.use_gru:
-            compose_network = partial(util.TreeGRULayer,
+        if FLAGS.tree_composition:
+            if FLAGS.use_gru:
+                compose_network = partial(util.TreeGRULayer,
                                       initializer=util.HeKaimingInitializer())
-        elif FLAGS.lstm_composition:
-            compose_network = partial(util.TreeLSTMLayer,
-                                      initializer=util.HeKaimingInitializer())
+            else:
+                compose_network = partial(util.TreeLSTMLayer,
+                                          initializer=util.HeKaimingInitializer())
         else:
             assert not FLAGS.connect_tracking_comp, "Can only connect tracking and composition unit while using TreeLSTM"
             compose_network = partial(util.ReLULayer,
@@ -114,7 +115,7 @@ def build_sentence_model(cls, vocab_size, seq_length, tokens, transitions,
         use_input_batch_norm=False)
 
     # Extract top element of final stack timestep.
-    if FLAGS.lstm_composition or cls is spinn.plain_rnn.RNN or FLAGS.use_gru:
+    if FLAGS.tree_composition or cls is spinn.plain_rnn.RNN:
         sentence_vector = sentence_model.final_representations[:,:FLAGS.model_dim / 2].reshape((-1, FLAGS.model_dim / 2))
         sentence_vector_dim = FLAGS.model_dim / 2
     else:
@@ -168,12 +169,13 @@ def build_sentence_pair_model(cls, vocab_size, seq_length, tokens, transitions,
         compose_network = None
         embedding_projection_network = None
     else:
-        if FLAGS.use_gru:
-            compose_network = partial(util.TreeGRULayer,
-                                      initializer=util.HeKaimingInitializer())
-        elif FLAGS.lstm_composition:
-            compose_network = partial(util.TreeLSTMLayer,
-                                      initializer=util.HeKaimingInitializer())
+        if FLAGS.tree_composition:
+            if FLAGS.use_gru:
+                compose_network = partial(util.TreeGRULayer,
+                                          initializer=util.HeKaimingInitializer())
+            else:
+                compose_network = partial(util.TreeLSTMLayer,
+                                          initializer=util.HeKaimingInitializer())
         else:
             assert not FLAGS.connect_tracking_comp, "Can only connect tracking and composition unit while using TreeLSTM"
             compose_network = partial(util.ReLULayer,
@@ -241,7 +243,7 @@ def build_sentence_pair_model(cls, vocab_size, seq_length, tokens, transitions,
         premise_vector = premise_model.final_representations
         hypothesis_vector = hypothesis_model.final_representations
 
-        if (FLAGS.lstm_composition and cls is not spinn.cbow.CBOW) or cls is spinn.plain_rnn.RNN:
+        if (FLAGS.tree_composition and cls is not spinn.cbow.CBOW) or cls is spinn.plain_rnn.RNN:
             premise_vector = premise_vector[:,:FLAGS.model_dim / 2].reshape((-1, FLAGS.model_dim / 2))
             hypothesis_vector = hypothesis_vector[:,:FLAGS.model_dim / 2].reshape((-1, FLAGS.model_dim / 2))
             sentence_vector_dim = FLAGS.model_dim / 2
@@ -781,7 +783,7 @@ if __name__ == '__main__':
         "Used for dropout in the semantic task classifier.")
     gflags.DEFINE_float("embedding_keep_rate", 0.5,
         "Used for dropout on transformed embeddings.")
-    gflags.DEFINE_boolean("lstm_composition", True, "")
+    gflags.DEFINE_boolean("tree_composition", True, "")
     gflags.DEFINE_enum("classifier_type", "MLP", ["MLP", "Highway", "ResNet"], "")
     gflags.DEFINE_integer("resnet_unit_depth", 2, "")
     # gflags.DEFINE_integer("num_composition_layers", 1, "")
