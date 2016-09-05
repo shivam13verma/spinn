@@ -77,22 +77,68 @@ class FatStackTestCase(unittest.TestCase):
         print expected
         np.testing.assert_almost_equal(ret, expected)
 
+    def test_basic_ff_2(self):
+        # Test expected behavior of dataset in `test_valid_stack`.
+        dataset = [
+            {
+                "tokens": [3, 1,  2, 7],
+                "transitions": [0, 0, 0, 0, 1]
+            },
+            {
+                "tokens": [3, 2,  4, 5],
+                "transitions": [0, 0, 1, 0, 0]
+            }
+        ]
+
+        seq_length = 5
+        self._make_stack(len(dataset), seq_length, validate_transitions=True)
+
+        dataset = CropAndPad(dataset, seq_length)
+        X = np.array([example["tokens"] for example in dataset],
+                     dtype=np.int32)
+        transitions = np.array([example["transitions"] for example in dataset],
+                               dtype=np.int32)
+
+        expected = np.array([[[9, 9, 9],
+                              [1, 1, 1],
+                              [3, 3, 3],
+                              [0, 0, 0],
+                              [0, 0, 0]],
+                             [[5, 5, 5],
+                              [4, 4, 4],
+                              [5, 5, 5],
+                              [0, 0, 0],
+                              [0, 0, 0]]])
+
+        ret = self.stack.scan_fn(X, transitions, 1.0, 1)
+        print ret
+        print expected
+        np.testing.assert_almost_equal(ret, expected)
+
     def test_valid_stack(self):
-        self._make_stack(seq_length=4, validate_transitions=True)
+        dataset = [
+            {
+                # First input: Try an invalid push. Should merge instead.
+                # (The last transition is the invalid one)
+                "tokens": [3, 1,  2, 7],
+                "transitions": [0, 0, 0, 0, 0]
+            },
+            {
+                # Second input: Try an invalid merge. Should push instead.
+                # (The first transition is the invalid one)
+                "tokens": [3, 2,  4, 5],
+                "transitions": [1, 0, 1, 0, 0]
+            }
+        ]
 
-        X = np.array([
-            [3, 1,  2, 7],
-            [3, 2,  4, 5]
-        ], dtype=np.int32)
+        seq_length = 5
+        self._make_stack(len(dataset), seq_length, validate_transitions=True)
 
-        transitions = np.array([
-            # First input: Try an invalid push. Should merge instead.
-            # (The last transition is the invalid one)
-            [0, 0, 0, 0, 0],
-            # Second input: Try an invalid merge. Should push instead.
-            # (The first transition is the invalid one)
-            [1, 0, 1, 0, 0]
-        ], dtype=np.int32)
+        dataset = CropAndPad(dataset, seq_length)
+        X = np.array([example["tokens"] for example in dataset],
+                     dtype=np.int32)
+        transitions = np.array([example["transitions"] for example in dataset],
+                               dtype=np.int32)
 
         expected = np.array([[[9, 9, 9],
                               [1, 1, 1],
