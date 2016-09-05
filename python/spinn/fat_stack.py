@@ -328,10 +328,10 @@ class HardStack(object):
             mask = transitions_t
 
         if self._validate_transitions:
-            pass
-            # import ipdb; ipdb.set_trace()
-            # must_stack = stack_t
-            # must_reduce = buffer_top_t
+            must_shift = T.switch(T.lt(buffer_cur_t, 1), 1, 0)
+            must_reduce = T.switch(T.ge(buffer_cur_t, self.seq_length - 1), 1, 0)
+            actions_mask = 1 - must_reduce - must_shift
+            mask = mask * actions_mask + must_reduce
 
         # Now update the stack: first precompute reduce results.
         if self.model_dim != self.stack_dim:

@@ -91,7 +91,7 @@ class FatStackTestCase(unittest.TestCase):
         ]
 
         seq_length = 5
-        self._make_stack(len(dataset), seq_length, validate_transitions=True)
+        self._make_stack(len(dataset), seq_length)
 
         dataset = CropAndPad(dataset, seq_length)
         X = np.array([example["tokens"] for example in dataset],
