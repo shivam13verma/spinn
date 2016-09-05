@@ -16,7 +16,7 @@ class FatStackTestCase(unittest.TestCase):
 
     """Basic functional tests for the fat stack with dummy data."""
 
-    def _make_stack(self, batch_size=2, seq_length=4):
+    def _make_stack(self, batch_size=2, seq_length=4, validate_transitions=False):
         self.batch_size = batch_size
         self.embedding_dim = embedding_dim = 3
         self.vocab_size = vocab_size = 10
@@ -43,6 +43,7 @@ class FatStackTestCase(unittest.TestCase):
                 seq_length, compose_network, IdentityLayer, training_mode,
                 ground_truth_transitions_visible, vs, X=X,
                 transitions=transitions, make_test_fn=True,
+                validate_transitions=validate_transitions,
                 initial_embeddings=initial_embeddings,
                 use_input_batch_norm=False, use_input_dropout=False)
 
@@ -67,6 +68,39 @@ class FatStackTestCase(unittest.TestCase):
                               [1, 1, 1],
                               [3, 3, 3]],
                              [[4, 4, 4],
+                              [5, 5, 5],
+                              [0, 0, 0],
+                              [0, 0, 0]]])
+
+        ret = self.stack.scan_fn(X, transitions, 1.0, 1)
+        print ret
+        print expected
+        np.testing.assert_almost_equal(ret, expected)
+
+    def test_valid_stack(self):
+        self._make_stack(seq_length=4, validate_transitions=True)
+
+        X = np.array([
+            [3, 1,  2, 7],
+            [3, 2,  4, 5]
+        ], dtype=np.int32)
+
+        transitions = np.array([
+            # First input: Try an invalid push. Should merge instead.
+            # (The last transition is the invalid one)
+            [0, 0, 0, 0, 0],
+            # Second input: Try an invalid merge. Should push instead.
+            # (The first transition is the invalid one)
+            [1, 0, 1, 0, 0]
+        ], dtype=np.int32)
+
+        expected = np.array([[[9, 9, 9],
+                              [1, 1, 1],
+                              [3, 3, 3],
+                              [0, 0, 0],
+                              [0, 0, 0]],
+                             [[5, 5, 5],
+                              [4, 4, 4],
                               [5, 5, 5],
                               [0, 0, 0],
                               [0, 0, 0]]])

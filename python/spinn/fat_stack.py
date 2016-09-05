@@ -74,6 +74,7 @@ class HardStack(object):
                  predict_use_cell=False,
                  predict_transitions=False,
                  train_with_predicted_transitions=False,
+                 validate_transitions=True,
                  interpolate=False,
                  X=None,
                  transitions=None,
@@ -173,6 +174,7 @@ class HardStack(object):
         self._prediction_and_tracking_network = prediction_and_tracking_network
         self._predict_use_cell = predict_use_cell
         self._predict_transitions = predict_transitions
+        self._validate_transitions = validate_transitions
         self.train_with_predicted_transitions = train_with_predicted_transitions
 
         self._vs = vs
@@ -234,6 +236,7 @@ class HardStack(object):
         self._make_scan()
 
         if make_test_fn:
+            # CHECK: self.transitions
             self.scan_fn = theano.function([self.X, self.transitions, self.training_mode,
                                             self.ground_truth_transitions_visible],
                                            self.final_stack,
@@ -323,6 +326,12 @@ class HardStack(object):
         else:
             # Model 0 case.
             mask = transitions_t
+
+        if self._validate_transitions:
+            pass
+            # import ipdb; ipdb.set_trace()
+            # must_stack = stack_t
+            # must_reduce = buffer_top_t
 
         # Now update the stack: first precompute reduce results.
         if self.model_dim != self.stack_dim:
@@ -414,6 +423,7 @@ class HardStack(object):
         DUMMY = T.zeros((2,)) # a dummy tensor used as a place-holder
 
         # Dimshuffle inputs to seq_len * batch_size for scanning
+        # CHECK: self.transitions
         transitions = self.transitions.dimshuffle(1, 0)
 
         # Initialize the hidden state for the tracking LSTM, if needed.
