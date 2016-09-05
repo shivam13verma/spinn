@@ -74,6 +74,7 @@ class HardStack(object):
                  predict_use_cell=False,
                  predict_transitions=False,
                  train_with_predicted_transitions=False,
+                 validate_transitions=True,
                  interpolate=False,
                  X=None,
                  transitions=None,
@@ -173,6 +174,7 @@ class HardStack(object):
         self._prediction_and_tracking_network = prediction_and_tracking_network
         self._predict_use_cell = predict_use_cell
         self._predict_transitions = predict_transitions
+        self._validate_transitions = validate_transitions
         self.train_with_predicted_transitions = train_with_predicted_transitions
 
         self._vs = vs
@@ -317,6 +319,12 @@ class HardStack(object):
         else:
             # Model 0 case.
             mask = transitions_t
+
+        if self._validate_transitions:
+            must_shift = T.switch(T.lt(buffer_cur_t, 1), 1, 0)
+            must_reduce = T.switch(T.ge(buffer_cur_t, self.seq_length - 1), 1, 0)
+            actions_mask = 1 - must_reduce - must_shift
+            mask = mask * actions_mask + must_reduce
 
         # Now update the stack: first precompute reduce results.
         if self.model_dim != self.stack_dim:
