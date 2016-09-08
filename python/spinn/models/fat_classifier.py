@@ -105,6 +105,7 @@ def build_sentence_model(cls, vocab_size, seq_length, tokens, transitions,
         tracking_lstm_hidden_dim=FLAGS.tracking_lstm_hidden_dim,
         X=tokens,
         transitions=transitions,
+        validate_transitions=FLAGS.validate_transitions,
         initial_embeddings=initial_embeddings,
         embedding_dropout_keep_rate=FLAGS.embedding_keep_rate,
         ss_mask_gen=ss_mask_gen,
@@ -802,6 +803,8 @@ if __name__ == '__main__':
         "tracking unit c state of the premise model.")
     gflags.DEFINE_boolean("use_gru", False,
                           "Use GRU units instead of LSTM units.")
+    gflags.DEFINE_boolean("validate_transitions", False,
+                          "Ensure that transitions are valid moves.")
 
     # Optimization settings.
     gflags.DEFINE_integer("training_steps", 500000, "Stop training after this point.")

@@ -74,7 +74,7 @@ class HardStack(object):
                  predict_use_cell=False,
                  predict_transitions=False,
                  train_with_predicted_transitions=False,
-                 validate_transitions=True,
+                 validate_transitions=False,
                  interpolate=False,
                  X=None,
                  transitions=None,
@@ -295,16 +295,10 @@ class HardStack(object):
                     self.tracking_lstm_hidden_dim, self._vs,
                     logits_use_cell=self._predict_use_cell,
                     name="prediction_and_tracking")
-            elif FLAGS.use_gru:
-                # Obtain predicted actions directly. Drop logits_use_cell param.
-                actions_t = self._prediction_and_tracking_network(
-                    predict_inp, h_dim * 3, util.NUM_TRANSITION_TYPES, self._vs,
-                    name="prediction_and_tracking")
             else:
                 # Obtain predicted actions directly.
                 actions_t = self._prediction_and_tracking_network(
                     predict_inp, h_dim * 3, util.NUM_TRANSITION_TYPES, self._vs,
-                    logits_use_cell=self._predict_use_cell,
                     name="prediction_and_tracking")
 
         if self.train_with_predicted_transitions:
