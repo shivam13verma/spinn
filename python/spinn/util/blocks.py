@@ -305,15 +305,14 @@ def BiLSTMBufferLayer(raw_embeddings, batch_size, inp_dim, outp_dim, _vs, name="
              ]
     """
 
-    # Halve the output dimension, because we will concatenate the two parts later.
-    half_dim = outp_dim / 2
-
     # Get the new representation from the forward sequence.
-    fwd_embeddings = LSTMBufferLayer(raw_embeddings, batch_size, inp_dim, outp_dim, _vs, name="fwd_%s" % name, initializer=initializer)
+    fwd_embeddings = LSTMBufferLayer(raw_embeddings,
+        batch_size, inp_dim, outp_dim, _vs, name="fwd_%s" % name, initializer=initializer)
 
     # To get the backward representation, reverse the sequence and run like you would for the
     # forward sequence. Then reverse the results.
-    bwd_embeddings = LSTMBufferLayer(raw_embeddings[:, :, ::-1], batch_size, inp_dim, outp_dim, _vs, name="bwd_%s" % name, initializer=initializer)
+    bwd_embeddings = LSTMBufferLayer(raw_embeddings[:, :, ::-1],
+        batch_size, inp_dim, outp_dim, _vs, name="bwd_%s" % name, initializer=initializer)
     bwd_embeddings = bwd_embeddings[:, :, ::-1]
 
     # Concatenate the forward and backward representations.

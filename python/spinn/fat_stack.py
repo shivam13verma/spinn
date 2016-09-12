@@ -82,6 +82,7 @@ class HardStack(object):
                  use_input_batch_norm=True,
                  use_input_dropout=True,
                  embedding_dropout_keep_rate=1.0,
+                 use_encoded_embeddings=False,
                  ss_mask_gen=None,
                  ss_prob=0.0,
                  use_tracking_lstm=False,
@@ -163,6 +164,7 @@ class HardStack(object):
         self.model_dim = model_dim
         self.stack_dim = 2 * model_dim if use_attention in {"TreeWangJiang", "TreeThang"} else model_dim
         self.word_embedding_dim = word_embedding_dim
+        self.use_encoded_embeddings = use_encoded_embeddings
         self.use_tracking_lstm = use_tracking_lstm
         self.tracking_lstm_hidden_dim = tracking_lstm_hidden_dim
         self.vocab_size = vocab_size
@@ -384,18 +386,28 @@ class HardStack(object):
         # Look up all of the embeddings that will be used.
         raw_embeddings = self.word_embeddings[self.X]  # batch_size * seq_length * emb_dim
 
+        if self.use_encoded_embeddings:
+            enc_emb_inp_dim  = self.word_embedding_dim
+            enc_emb_outp_dim = self.word_embedding_dim
+            # TODO(mrdrozdov): Embedding Encoding network should be passed in,
+            # rather than hardcoded to BiLSTM.
+            encoded_embeddings = util.BiLSTMBufferLayer(
+                raw_embeddings, batch_size, enc_emb_inp_dim, enc_emb_outp_dim, self._vs)
+        else:
+            encoded_embeddings = raw_embeddings
+
         if self.context_sensitive_shift:
             # Use the raw embedding vectors, they will be combined with the hidden state of
             # the tracking unit later
-            buffer_t = raw_embeddings
+            buffer_t = encoded_embeddings
             buffer_emb_dim = self.word_embedding_dim
         else:
             # Allocate a "buffer" stack initialized with projected embeddings,
             # and maintain a cursor in this buffer.
             if self.use_input_dropout:
-                raw_embeddings = util.Dropout(raw_embeddings, self.embedding_dropout_keep_rate, self.training_mode)
+                encoded_embeddings = util.Dropout(encoded_embeddings, self.embedding_dropout_keep_rate, self.training_mode)
             buffer_t = self._embedding_projection_network(
-                raw_embeddings, self.word_embedding_dim, self.model_dim, self._vs, name="project")
+                encoded_embeddings, self.word_embedding_dim, self.model_dim, self._vs, name="project")
             if self.use_input_batch_norm:
                 buffer_t = util.BatchNorm(buffer_t, self.model_dim, self._vs, "buffer",
                     self.training_mode, axes=[0, 1])
