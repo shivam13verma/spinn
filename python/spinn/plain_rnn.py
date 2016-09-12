@@ -16,6 +16,7 @@ class RNN(object):
                  train_with_predicted_transitions=False, 
                  X=None,
                  initial_embeddings=None,
+                 use_encoded_embeddings=False,
                  make_test_fn=False,
                  **kwargs):
         """Construct an RNN.
@@ -43,6 +44,8 @@ class RNN(object):
         self._vs = vs
 
         self.initial_embeddings = initial_embeddings
+
+        self.use_encoded_embeddings = use_encoded_embeddings
 
         self.training_mode = training_mode
 
@@ -89,12 +92,20 @@ class RNN(object):
         raw_embeddings = self.embeddings[self.X]  # batch_size * seq_length * emb_dim
         raw_embeddings = raw_embeddings.dimshuffle(1, 0, 2)
 
+        if self.use_encoded_embeddings:
+            enc_emb_inp_dim  = self.word_embedding_dim
+            enc_emb_outp_dim = self.word_embedding_dim
+            encoded_embeddings = util.BiLSTMBufferLayer(
+                raw_embeddings, batch_size, enc_emb_inp_dim, enc_emb_outp_dim, self._vs)
+        else:
+            encoded_embeddings = raw_embeddings
+
         # Initialize the hidden state.
         hidden_init = T.zeros((batch_size, self.model_dim))
 
         self.states = theano.scan(
                 self._step,
-                sequences=[raw_embeddings],
+                sequences=[encoded_embeddings],
                 outputs_info=[hidden_init])[0]
 
         self.final_representations = self.states[-1]

@@ -353,6 +353,65 @@ def GRULayer(h_prev, inp, inp_dim, full_memory_dim, vs, name="gru", initializer=
     return T.concatenate([h_next], axis=1)
 
 
+def LSTMBufferLayer(raw_embeddings, batch_size, inp_dim, outp_dim, _vs, name="lstm_buffer_layer", initializer=None):
+    h_dim = outp_dim / 2
+    def _step(word_emb, h_prev):
+        h_t = LSTMLayer(h_prev, word_emb,
+            inp_dim, outp_dim, _vs, name=name, initializer=initializer)
+        return h_t
+
+    h_init = T.zeros((batch_size, outp_dim))
+    results = theano.scan(
+        _step,
+        sequences=[raw_embeddings],
+        outputs_info=[h_init])[0]
+    results = results[:, :, :h_dim]
+    return results
+
+
+def BiLSTMBufferLayer(raw_embeddings, batch_size, inp_dim, outp_dim, _vs, name="bilstm_buffer_layer", initializer=None):
+    """Create a new representation of the buffer by running two LSTMs
+    over the initial sequence (one forward and one backward). Contenate
+    the outputs of the LSTMs' output to get the final representation.
+    Note that concatenation is over third-order tensors:
+
+    fwd   := [
+              [[a_1, a_2, a_3],
+               [b_1, b_2, b_3]],
+              [[a_1, a_2, a_3],
+               [b_1, b_2, b_3]]
+             ]
+    bwd   := [
+              [[c_1, c_2, c_3],
+               [d_1, d_2, d_3]],
+              [[c_1, c_2, c_3],
+               [d_1, d_2, d_3]]
+             ]
+    final := concat(bwd, fwd)
+          := [
+              [[a_1, a_2, a_3, c_1, c_2, c_3],
+               [b_1, b_2, b_3, d_1, d_2, d_3]],
+              [[a_1, a_2, a_3, c_1, c_2, c_3],
+               [b_1, b_2, b_3, d_1, d_2, d_3]]
+             ]
+    """
+
+    # Halve the output dimension, because we will concatenate the two parts later.
+    half_dim = outp_dim / 2
+
+    # Get the new representation from the forward sequence.
+    fwd_embeddings = LSTMBufferLayer(raw_embeddings, batch_size, inp_dim, outp_dim, _vs, name="fwd_%s" % name, initializer=initializer)
+
+    # To get the backward representation, reverse the sequence and run like you would for the
+    # forward sequence. Then reverse the results.
+    bwd_embeddings = LSTMBufferLayer(raw_embeddings[:, :, ::-1], batch_size, inp_dim, outp_dim, _vs, name="bwd_%s" % name, initializer=initializer)
+    bwd_embeddings = bwd_embeddings[:, :, ::-1]
+
+    # Concatenate the forward and backward representations.
+    results = T.concatenate([fwd_embeddings, bwd_embeddings], axis=2)
+    return results
+
+
 def MLP(inp, inp_dim, outp_dim, vs, layer=ReLULayer, hidden_dims=None,
         name="mlp", initializer=None):
     if hidden_dims is None:
