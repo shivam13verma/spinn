@@ -17,6 +17,8 @@ class RNN(object):
                  X=None,
                  initial_embeddings=None,
                  use_encoded_embeddings=False,
+                 embedding_encoding_dim=None,
+                 embedding_encoding_network=None,
                  make_test_fn=False,
                  **kwargs):
         """Construct an RNN.
@@ -46,6 +48,10 @@ class RNN(object):
         self.initial_embeddings = initial_embeddings
 
         self.use_encoded_embeddings = use_encoded_embeddings
+        self.embedding_encoding_dim = embedding_encoding_dim if embedding_encoding_dim is not None else word_embedding_dim
+        self._embedding_encoding_network = embedding_encoding_network
+        assert (embedding_encoding_network or not use_encoded_embeddings), \
+            "Must specify encoding unit if encoding word embeddings"
 
         self.training_mode = training_mode
 
@@ -93,10 +99,8 @@ class RNN(object):
         raw_embeddings = raw_embeddings.dimshuffle(1, 0, 2)
 
         if self.use_encoded_embeddings:
-            enc_emb_inp_dim  = self.word_embedding_dim
-            enc_emb_outp_dim = self.word_embedding_dim
-            encoded_embeddings = util.BiLSTMBufferLayer(
-                raw_embeddings, batch_size, enc_emb_inp_dim, enc_emb_outp_dim, self._vs)
+            encoded_embeddings = self._embedding_encoding_network(raw_embeddings,
+                batch_size, self.word_embedding_dim, self.embedding_encoding_dim, self._vs)
         else:
             encoded_embeddings = raw_embeddings
 

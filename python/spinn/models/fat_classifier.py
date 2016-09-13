@@ -96,6 +96,8 @@ def build_sentence_model(cls, vocab_size, seq_length, tokens, transitions,
                 "word_embedding_dim must equal model_dim unless a projection layer is used."
             embedding_projection_network = util.IdentityLayer
 
+    embedding_encoding_network = util.BiLSTMBufferLayer
+
     # Build hard stack which scans over input sequence.
     sentence_model = cls(
         FLAGS.model_dim, FLAGS.word_embedding_dim, vocab_size, seq_length,
@@ -109,6 +111,7 @@ def build_sentence_model(cls, vocab_size, seq_length, tokens, transitions,
         initial_embeddings=initial_embeddings,
         embedding_dropout_keep_rate=FLAGS.embedding_keep_rate,
         use_encoded_embeddings=FLAGS.use_encoded_embeddings,
+        embedding_encoding_network=embedding_encoding_network,
         ss_mask_gen=ss_mask_gen,
         ss_prob=ss_prob,
         connect_tracking_comp=FLAGS.connect_tracking_comp,
@@ -190,6 +193,8 @@ def build_sentence_pair_model(cls, vocab_size, seq_length, tokens, transitions,
                 "word_embedding_dim must equal model_dim unless a projection layer is used."
             embedding_projection_network = util.IdentityLayer
 
+    embedding_encoding_network = util.BiLSTMBufferLayer
+
     # Split the two sentences
     premise_tokens = tokens[:, :, 0]
     hypothesis_tokens = tokens[:, :, 1]
@@ -209,6 +214,7 @@ def build_sentence_pair_model(cls, vocab_size, seq_length, tokens, transitions,
         initial_embeddings=initial_embeddings,
         embedding_dropout_keep_rate=FLAGS.embedding_keep_rate,
         use_encoded_embeddings=FLAGS.use_encoded_embeddings,
+        embedding_encoding_network=embedding_encoding_network,
         ss_mask_gen=ss_mask_gen,
         ss_prob=ss_prob,
         connect_tracking_comp=FLAGS.connect_tracking_comp,
@@ -231,6 +237,7 @@ def build_sentence_pair_model(cls, vocab_size, seq_length, tokens, transitions,
         initial_embeddings=initial_embeddings,
         embedding_dropout_keep_rate=FLAGS.embedding_keep_rate,
         use_encoded_embeddings=FLAGS.use_encoded_embeddings,
+        embedding_encoding_network=embedding_encoding_network,
         ss_mask_gen=ss_mask_gen,
         ss_prob=ss_prob,
         connect_tracking_comp=FLAGS.connect_tracking_comp,
