@@ -83,6 +83,8 @@ class HardStack(object):
                  use_input_dropout=True,
                  embedding_dropout_keep_rate=1.0,
                  use_encoded_embeddings=False,
+                 embedding_encoding_dim=None,
+                 embedding_encoding_network=None,
                  ss_mask_gen=None,
                  ss_prob=0.0,
                  use_tracking_lstm=False,
@@ -165,12 +167,16 @@ class HardStack(object):
         self.stack_dim = 2 * model_dim if use_attention in {"TreeWangJiang", "TreeThang"} else model_dim
         self.word_embedding_dim = word_embedding_dim
         self.use_encoded_embeddings = use_encoded_embeddings
+        self.embedding_encoding_dim = embedding_encoding_dim if embedding_encoding_dim is not None else word_embedding_dim
         self.use_tracking_lstm = use_tracking_lstm
         self.tracking_lstm_hidden_dim = tracking_lstm_hidden_dim
         self.vocab_size = vocab_size
         self.seq_length = seq_length
 
         self._compose_network = compose_network
+        self._embedding_encoding_network = embedding_encoding_network
+        assert (embedding_encoding_network or not use_encoded_embeddings), \
+            "Must specify encoding unit if encoding word embeddings"
         self._embedding_projection_network = embedding_projection_network
         self._prediction_and_tracking_network = prediction_and_tracking_network
         self._predict_use_cell = predict_use_cell
@@ -387,30 +393,26 @@ class HardStack(object):
         raw_embeddings = self.word_embeddings[self.X]  # batch_size * seq_length * emb_dim
 
         if self.use_encoded_embeddings:
-            enc_emb_inp_dim  = self.word_embedding_dim
-            enc_emb_outp_dim = self.word_embedding_dim
-            # TODO(mrdrozdov): Embedding Encoding network should be passed in,
-            # rather than hardcoded to BiLSTM.
-            encoded_embeddings = util.BiLSTMBufferLayer(
-                raw_embeddings, batch_size, enc_emb_inp_dim, enc_emb_outp_dim, self._vs)
-        else:
-            encoded_embeddings = raw_embeddings
+            raw_embeddings = raw_embeddings.dimshuffle(1, 0, 2) # AxBxC -> BxAxC
+            raw_embeddings = self._embedding_encoding_network(raw_embeddings,
+                batch_size, self.word_embedding_dim, self.embedding_encoding_dim, self._vs)
+            raw_embeddings = raw_embeddings.dimshuffle(1, 0, 2) # BxAxC -> AxBxC
 
         if self.context_sensitive_shift:
             # Use the raw embedding vectors, they will be combined with the hidden state of
             # the tracking unit later
-            buffer_t = encoded_embeddings
+            buffer_t = raw_embeddings
             buffer_emb_dim = self.word_embedding_dim
         else:
             # Allocate a "buffer" stack initialized with projected embeddings,
             # and maintain a cursor in this buffer.
-            if self.use_input_dropout:
-                encoded_embeddings = util.Dropout(encoded_embeddings, self.embedding_dropout_keep_rate, self.training_mode)
+            # if self.use_input_dropout:
+            #     raw_embeddings = util.Dropout(raw_embeddings, self.embedding_dropout_keep_rate, self.training_mode)
             buffer_t = self._embedding_projection_network(
-                encoded_embeddings, self.word_embedding_dim, self.model_dim, self._vs, name="project")
-            if self.use_input_batch_norm:
-                buffer_t = util.BatchNorm(buffer_t, self.model_dim, self._vs, "buffer",
-                    self.training_mode, axes=[0, 1])
+                raw_embeddings, self.word_embedding_dim, self.model_dim, self._vs, name="project")
+            # if self.use_input_batch_norm:
+            #     buffer_t = util.BatchNorm(buffer_t, self.model_dim, self._vs, "buffer",
+            #         self.training_mode, axes=[0, 1])
             buffer_emb_dim = self.model_dim
 
         # Collapse buffer to (batch_size * buffer_size) * emb_dim for fast indexing.
