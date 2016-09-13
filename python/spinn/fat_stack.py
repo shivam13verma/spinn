@@ -84,7 +84,7 @@ class HardStack(object):
                  use_input_dropout=True,
                  embedding_dropout_keep_rate=1.0,
                  use_encoded_embeddings=False,
-                 embedding_encoding_dim=None,
+                 enc_embedding_dim=20,
                  embedding_encoding_network=None,
                  ss_mask_gen=None,
                  ss_prob=0.0,
@@ -168,7 +168,8 @@ class HardStack(object):
         self.stack_dim = 2 * model_dim if use_attention in {"TreeWangJiang", "TreeThang"} else model_dim
         self.word_embedding_dim = word_embedding_dim
         self.use_encoded_embeddings = use_encoded_embeddings
-        self.embedding_encoding_dim = embedding_encoding_dim if embedding_encoding_dim is not None else word_embedding_dim
+        self.enc_embedding_dim = enc_embedding_dim
+        self.mid_embedding_dim = enc_embedding_dim if use_encoded_embeddings else word_embedding_dim
         self.use_tracking_lstm = use_tracking_lstm
         self.tracking_lstm_hidden_dim = tracking_lstm_hidden_dim
         self.vocab_size = vocab_size
@@ -281,7 +282,7 @@ class HardStack(object):
             # Combine with the hidden state from previous unit.
             tracking_h_t = tracking_hidden[:, :self.tracking_lstm_hidden_dim]
             context_comb_input_t = T.concatenate([tracking_h_t, buffer[idxs]], axis=1)
-            context_comb_input_dim = self.word_embedding_dim + self.tracking_lstm_hidden_dim
+            context_comb_input_dim = self.enc_embedding_dim + self.tracking_lstm_hidden_dim
             comb_layer = util.ReLULayer if self.context_sensitive_use_relu else util.Linear
             buffer_top_t = comb_layer(context_comb_input_t, context_comb_input_dim, self.model_dim,
                                 self._vs, name="context_comb_unit", use_bias=True,
@@ -402,25 +403,27 @@ class HardStack(object):
 
         if self.use_encoded_embeddings:
             raw_embeddings = raw_embeddings.dimshuffle(1, 0, 2) # AxBxC -> BxAxC
-            raw_embeddings = self._embedding_encoding_network(raw_embeddings,
-                batch_size, self.word_embedding_dim, self.embedding_encoding_dim, self._vs)
-            raw_embeddings = raw_embeddings.dimshuffle(1, 0, 2) # BxAxC -> AxBxC
+            mid_embeddings = self._embedding_encoding_network(raw_embeddings,
+                batch_size, self.word_embedding_dim, self.enc_embedding_dim, self._vs)
+            mid_embeddings = mid_embeddings.dimshuffle(1, 0, 2) # BxAxC -> AxBxC
+        else:
+            mid_embeddings = raw_embeddings
 
         if self.context_sensitive_shift:
             # Use the raw embedding vectors, they will be combined with the hidden state of
             # the tracking unit later
-            buffer_t = raw_embeddings
-            buffer_emb_dim = self.word_embedding_dim
+            buffer_t = mid_embeddings
+            buffer_emb_dim = self.mid_embedding_dim
         else:
             # Allocate a "buffer" stack initialized with projected embeddings,
             # and maintain a cursor in this buffer.
-            # if self.use_input_dropout:
-            #     raw_embeddings = util.Dropout(raw_embeddings, self.embedding_dropout_keep_rate, self.training_mode)
+            if self.use_input_dropout:
+                mid_embeddings = util.Dropout(mid_embeddings, self.embedding_dropout_keep_rate, self.training_mode)
             buffer_t = self._embedding_projection_network(
-                raw_embeddings, self.word_embedding_dim, self.model_dim, self._vs, name="project")
-            # if self.use_input_batch_norm:
-            #     buffer_t = util.BatchNorm(buffer_t, self.model_dim, self._vs, "buffer",
-            #         self.training_mode, axes=[0, 1])
+                mid_embeddings, self.mid_embedding_dim, self.model_dim, self._vs, name="project")
+            if self.use_input_batch_norm:
+                buffer_t = util.BatchNorm(buffer_t, self.model_dim, self._vs, "buffer",
+                    self.training_mode, axes=[0, 1])
             buffer_emb_dim = self.model_dim
 
         # Collapse buffer to (batch_size * buffer_size) * emb_dim for fast indexing.
