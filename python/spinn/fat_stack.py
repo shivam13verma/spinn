@@ -331,7 +331,7 @@ class HardStack(object):
             mask = transitions_t
 
         if self._validate_transitions:
-            must_shift = T.switch(T.lt(buffer_cur_t, 1), 1, 0)
+            must_shift = T.switch(T.lt(buffer_cur_t, 2), 1, 0)
             must_reduce = T.switch(T.ge(buffer_cur_t, self.seq_length - 1), 1, 0)
             actions_mask = 1 - must_reduce - must_shift
             mask = mask * actions_mask + must_reduce

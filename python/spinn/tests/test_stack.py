@@ -81,11 +81,11 @@ class FatStackTestCase(unittest.TestCase):
         # Test expected behavior of dataset in `test_valid_stack`.
         dataset = [
             {
-                "tokens": [3, 1,  2, 7],
+                "tokens": [1, 1,  1, 1],
                 "transitions": [0, 0, 0, 0, 1]
             },
             {
-                "tokens": [3, 2,  4, 5],
+                "tokens": [1, 1,  1, 1],
                 "transitions": [0, 0, 1, 0, 0]
             }
         ]
@@ -99,14 +99,14 @@ class FatStackTestCase(unittest.TestCase):
         transitions = np.array([example["transitions"] for example in dataset],
                                dtype=np.int32)
 
-        expected = np.array([[[9, 9, 9],
+        expected = np.array([[[2, 2, 2],
                               [1, 1, 1],
-                              [3, 3, 3],
+                              [1, 1, 1],
                               [0, 0, 0],
                               [0, 0, 0]],
-                             [[5, 5, 5],
-                              [4, 4, 4],
-                              [5, 5, 5],
+                             [[1, 1, 1],
+                              [1, 1, 1],
+                              [2, 2, 2],
                               [0, 0, 0],
                               [0, 0, 0]]])
 
@@ -120,14 +120,14 @@ class FatStackTestCase(unittest.TestCase):
             {
                 # First input: Try an invalid push. Should merge instead.
                 # (The last transition is the invalid one)
-                "tokens": [3, 1,  2, 7],
+                "tokens": [1, 1,  1, 1],
                 "transitions": [0, 0, 0, 0, 0]
             },
             {
                 # Second input: Try an invalid merge. Should push instead.
                 # (The first transition is the invalid one)
-                "tokens": [3, 2,  4, 5],
-                "transitions": [1, 0, 1, 0, 0]
+                "tokens": [1, 1,  1, 1],
+                "transitions": [1, 1, 1, 0, 0]
             }
         ]
 
@@ -140,14 +140,14 @@ class FatStackTestCase(unittest.TestCase):
         transitions = np.array([example["transitions"] for example in dataset],
                                dtype=np.int32)
 
-        expected = np.array([[[9, 9, 9],
+        expected = np.array([[[2, 2, 2],
                               [1, 1, 1],
-                              [3, 3, 3],
+                              [1, 1, 1],
                               [0, 0, 0],
                               [0, 0, 0]],
-                             [[5, 5, 5],
-                              [4, 4, 4],
-                              [5, 5, 5],
+                             [[1, 1, 1],
+                              [1, 1, 1],
+                              [2, 2, 2],
                               [0, 0, 0],
                               [0, 0, 0]]])
 
@@ -779,3 +779,4 @@ class ThinStackSpeedTestCase(unittest.TestCase, BackpropTestMixin):
 
 if __name__ == '__main__':
     unittest.main()
+
