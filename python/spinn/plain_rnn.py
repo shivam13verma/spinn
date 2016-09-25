@@ -69,16 +69,3 @@ class RNN(object):
 
         self.rnn = RNN_Chainer(model_dim, word_embedding_dim, vocab_size, compose_network, initial_embeddings)
         self.model = L.Classifier(self.rnn)
-        self.optimizer = optimizers.SGD()
-        self.optimizer.setup(self.model)
-
-    def _compute_loss(self, X, Y):
-        loss = self.model(X, Y)
-        return loss
-
-    def step(self, X, Y):
-        self.rnn.reset_state()
-        self.model.cleargrads()
-        self.loss = self._compute_loss(X, Y)
-        self.loss.backward()
-        self.optimizer.update()

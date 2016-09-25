@@ -726,6 +726,11 @@ def run(only_forward=False):
         #     allow_input_downcast=True)
         eval_fn = lambda x1, x2, x3, x4, x5, x6, x7: 0.0
         logger.Log("Training.")
+        
+        optimizer = optimizers.SGD()
+        optimizer.setup(classifier_model.model)
+
+        trailing_acc = np.array([])
 
         # New Training Loop
         for step in range(step, FLAGS.training_steps):
@@ -741,14 +746,27 @@ def run(only_forward=False):
             y_batch = Variable(y_batch)
             num_transitions_batch = Variable(num_transitions_batch)
 
-            ipdb.set_trace()
-
             # Hack to get one sentence.
             _X = X_batch[:, :, 0]
-            classifier_model.step(_X, y_batch)
 
-            ipdb.set_trace()
-            pass
+            classifier_model.rnn.reset_state()
+            classifier_model.model.cleargrads()
+            loss = classifier_model.model(_X, y_batch)
+            loss.backward()
+            optimizer.update()
+
+            acc = classifier_model.model.accuracy
+            trailing_acc = np.append([float(acc.data)], trailing_acc[:FLAGS.statistics_interval_steps])
+
+            if step % FLAGS.statistics_interval_steps == 0:
+                avg_acc = trailing_acc.mean()
+                print("Step: {}\tAcc: {}".format(step, avg_acc))
+
+            # if step % FLAGS.statistics_interval_steps == 0:
+            # logger.Log(
+            #     "Step: %i\tAcc: %f\t%f\tCost: %5f %5f %5f %5f"
+            #     % (step, acc_val, action_acc_val, total_cost_val, xent_cost_val, transition_cost_val,
+            #        l2_cost_val))
 
         # Main training loop.
         # for step in range(step, FLAGS.training_steps):
