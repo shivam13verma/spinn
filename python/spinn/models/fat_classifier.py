@@ -49,6 +49,10 @@ import chainer.functions as F
 import chainer.links as L
 from chainer.training import extensions
 
+DEBUG = True
+
+if DEBUG:
+    import ipdb
 
 FLAGS = gflags.FLAGS
 
@@ -98,14 +102,14 @@ def build_sentence_model(cls, vocab_size, seq_length, tokens, transitions,
     #     context_sensitive_use_relu=FLAGS.context_sensitive_use_relu,
     #     use_input_batch_norm=False)
 
-    sentence_model = cls(
-        FLAGS.model_dim,
-        FLAGS.word_embedding_dim,
-        vocab_size,
-        compose_network,
-        X=tokens,
-        initial_embeddings=initial_embeddings,
-        )
+    # sentence_model = cls(
+    #     FLAGS.model_dim,
+    #     FLAGS.word_embedding_dim,
+    #     vocab_size,
+    #     compose_network,
+    #     X=tokens,
+    #     initial_embeddings=initial_embeddings,
+    #     )
 
     # # Extract top element of final stack timestep.
     # if FLAGS.lstm_composition or cls is spinn.plain_rnn.RNN:
@@ -125,7 +129,16 @@ def build_sentence_model(cls, vocab_size, seq_length, tokens, transitions,
 
     # return sentence_model.transitions_pred, logits
 
-    return (None, None)
+    classifier_model = cls(
+        FLAGS.model_dim,
+        FLAGS.word_embedding_dim,
+        vocab_size,
+        compose_network,
+        X=tokens,
+        initial_embeddings=initial_embeddings,
+        )
+
+    return (None, classifier_model)
 
 
 
@@ -182,14 +195,14 @@ def build_sentence_pair_model(cls, vocab_size, seq_length, tokens, transitions,
     #     context_sensitive_use_relu=FLAGS.context_sensitive_use_relu,
     #     initialize_hyp_tracking_state=FLAGS.initialize_hyp_tracking_state)
 
-    premise_model = cls(
-        FLAGS.model_dim,
-        FLAGS.word_embedding_dim,
-        vocab_size,
-        compose_network,
-        X=tokens,
-        initial_embeddings=initial_embeddings,
-        )
+    # premise_model = cls(
+    #     FLAGS.model_dim,
+    #     FLAGS.word_embedding_dim,
+    #     vocab_size,
+    #     compose_network,
+    #     X=tokens,
+    #     initial_embeddings=initial_embeddings,
+    #     )
 
     # premise_tracking_c_state_final = premise_model.tracking_c_state_final if cls not in [spinn.plain_rnn.RNN, 
     #                                                                                         spinn.cbow.CBOW] else None
@@ -212,14 +225,14 @@ def build_sentence_pair_model(cls, vocab_size, seq_length, tokens, transitions,
     #     initialize_hyp_tracking_state=FLAGS.initialize_hyp_tracking_state,
     #     premise_tracking_c_state_final=premise_tracking_c_state_final)
 
-    hypothesis_model = cls(
-        FLAGS.model_dim,
-        FLAGS.word_embedding_dim,
-        vocab_size,
-        compose_network,
-        X=tokens,
-        initial_embeddings=initial_embeddings,
-        )
+    # hypothesis_model = cls(
+    #     FLAGS.model_dim,
+    #     FLAGS.word_embedding_dim,
+    #     vocab_size,
+    #     compose_network,
+    #     X=tokens,
+    #     initial_embeddings=initial_embeddings,
+    #     )
 
     # Extract top element of final stack timestep.
     # premise_vector = premise_model.final_representations
@@ -293,7 +306,16 @@ def build_sentence_pair_model(cls, vocab_size, seq_length, tokens, transitions,
 
     # return premise_model.transitions_pred, hypothesis_model.transitions_pred, logits
 
-    return (None, None, None)
+    classifier_model = cls(
+        FLAGS.model_dim,
+        FLAGS.word_embedding_dim,
+        vocab_size,
+        compose_network,
+        X=tokens,
+        initial_embeddings=initial_embeddings,
+        )
+
+    return (None, None, classifier_model)
 
 
 def build_cost(logits, targets):
@@ -315,12 +337,6 @@ def build_cost(logits, targets):
     # return cost, acc
 
     return (0.0, 0.0)
-
-def compute_loss(targets):
-    loss = 0
-    for cur_word, next_word in zip(x_list, x_list[1:]):
-        loss += model(cur_word, next_word)
-    return loss
 
 
 def build_transition_cost(logits, targets, num_transitions):
@@ -584,12 +600,17 @@ def run(only_forward=False):
     ss_mask_gen = None
     ss_prob = None
 
+    predicted_transitions = None
+    predicted_premise_transitions = None
+    predicted_hypothesis_transitions = None
+    logits = None
+
     if data_manager.SENTENCE_PAIR_DATA:
         # X = T.itensor3("X")
         # transitions = T.itensor3("transitions")
         # num_transitions = T.imatrix("num_transitions")
 
-        predicted_premise_transitions, predicted_hypothesis_transitions, logits = build_sentence_pair_model(
+        premise_tranisiton_model, hypothesis_transition_model, classifier_model = build_sentence_pair_model(
             model_cls, len(vocabulary), FLAGS.seq_length,
             X, transitions, len(data_manager.LABEL_MAP), training_mode, ground_truth_transitions_visible, vs,
             initial_embeddings=initial_embeddings, project_embeddings=(not train_embeddings),
@@ -600,7 +621,7 @@ def run(only_forward=False):
         # transitions = T.imatrix("transitions")
         # num_transitions = T.vector("num_transitions", dtype="int32")
 
-        predicted_transitions, logits = build_sentence_model(
+        transition_model, classifier_model = build_sentence_model(
             model_cls, len(vocabulary), FLAGS.seq_length,
             X, transitions, len(data_manager.LABEL_MAP), training_mode, ground_truth_transitions_visible, vs,
             initial_embeddings=initial_embeddings, project_embeddings=(not train_embeddings),
@@ -705,6 +726,29 @@ def run(only_forward=False):
         #     allow_input_downcast=True)
         eval_fn = lambda x1, x2, x3, x4, x5, x6, x7: 0.0
         logger.Log("Training.")
+
+        # New Training Loop
+        for step in range(step, FLAGS.training_steps):
+            # if step % FLAGS.eval_interval_steps == 0:
+            #     for index, eval_set in enumerate(eval_iterators):
+            #         ipdb.set_trace()
+            #         pass
+            X_batch, transitions_batch, y_batch, num_transitions_batch = training_data_iter.next()
+            learning_rate = FLAGS.learning_rate * (FLAGS.learning_rate_decay_per_10k_steps ** (step / 10000.0))
+
+            X_batch = Variable(X_batch)
+            transitions_batch = Variable(transitions_batch)
+            y_batch = Variable(y_batch)
+            num_transitions_batch = Variable(num_transitions_batch)
+
+            ipdb.set_trace()
+
+            # Hack to get one sentence.
+            _X = X_batch[:, :, 0]
+            classifier_model.step(_X, y_batch)
+
+            ipdb.set_trace()
+            pass
 
         # Main training loop.
         # for step in range(step, FLAGS.training_steps):
