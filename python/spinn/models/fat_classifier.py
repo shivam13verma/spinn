@@ -49,10 +49,6 @@ import chainer.functions as F
 import chainer.links as L
 from chainer.training import extensions
 
-DEBUG = True
-
-if DEBUG:
-    import ipdb
 
 FLAGS = gflags.FLAGS
 
@@ -67,15 +63,9 @@ def build_sentence_model(cls, vocab_size, seq_length, tokens, transitions,
       cls: Hard stack class to use (from e.g. `spinn.fat_stack`)
       vocab_size:
       seq_length: Length of each sequence provided to the stack model
-      tokens: Theano batch (integer matrix), `batch_size * seq_length`
-      transitions: Theano batch (integer matrix), `batch_size * seq_length`
       num_classes: Number of output classes
       training_mode: A Theano scalar indicating whether to act as a training model
         with dropout (1.0) or to act as an eval model with rescaling (0.0).
-      ground_truth_transitions_visible: A Theano scalar. If set (1.0), allow the model access
-        to ground truth transitions. This can be disabled at evaluation time to force Model 1
-        (or 2S) to evaluate in the Model 2 style with predicted transitions. Has no effect on Model 0.
-      vs: Variable store.
     """
 
     # Prepare layer which performs stack element composition.
@@ -84,61 +74,14 @@ def build_sentence_model(cls, vocab_size, seq_length, tokens, transitions,
     else:
         raise AssertionError("Need to specify an implemented model.")
 
-    # Build hard stack which scans over input sequence.
-    # sentence_model = cls(
-    #     FLAGS.model_dim, FLAGS.word_embedding_dim, vocab_size, seq_length,
-    #     compose_network, embedding_projection_network, training_mode, ground_truth_transitions_visible, vs,
-    #     predict_use_cell=FLAGS.predict_use_cell,
-    #     use_tracking_lstm=FLAGS.use_tracking_lstm,
-    #     tracking_lstm_hidden_dim=FLAGS.tracking_lstm_hidden_dim,
-    #     X=tokens,
-    #     transitions=transitions,
-    #     initial_embeddings=initial_embeddings,
-    #     embedding_dropout_keep_rate=FLAGS.embedding_keep_rate,
-    #     ss_mask_gen=ss_mask_gen,
-    #     ss_prob=ss_prob,
-    #     connect_tracking_comp=FLAGS.connect_tracking_comp,
-    #     context_sensitive_shift=FLAGS.context_sensitive_shift,
-    #     context_sensitive_use_relu=FLAGS.context_sensitive_use_relu,
-    #     use_input_batch_norm=False)
-
-    # sentence_model = cls(
-    #     FLAGS.model_dim,
-    #     FLAGS.word_embedding_dim,
-    #     vocab_size,
-    #     compose_network,
-    #     X=tokens,
-    #     initial_embeddings=initial_embeddings,
-    #     )
-
-    # # Extract top element of final stack timestep.
-    # if FLAGS.lstm_composition or cls is spinn.plain_rnn.RNN:
-    #     sentence_vector = sentence_model.final_representations[:,:FLAGS.model_dim / 2].reshape((-1, FLAGS.model_dim / 2))
-    #     sentence_vector_dim = FLAGS.model_dim / 2
-    # else:
-    #     sentence_vector = sentence_model.final_representations.reshape((-1, FLAGS.model_dim))
-    #     sentence_vector_dim = FLAGS.model_dim
-
-    # sentence_vector = util.BatchNorm(sentence_vector, sentence_vector_dim, vs, "sentence_vector", training_mode)
-    # sentence_vector = util.Dropout(sentence_vector, FLAGS.semantic_classifier_keep_rate, training_mode)
-
-    # # Feed forward through a single output layer
-    # logits = util.Linear(
-    #     sentence_vector, sentence_vector_dim, num_classes, vs,
-    #     name="semantic_classifier", use_bias=True)
-
-    # return sentence_model.transitions_pred, logits
-
-    classifier_model = cls(
-        FLAGS.model_dim,
-        FLAGS.word_embedding_dim,
-        vocab_size,
-        compose_network,
-        X=tokens,
+    classifier_model = cls(FLAGS.model_dim, FLAGS.word_embedding_dim, vocab_size, compose_network,
+        seq_length=seq_length,
+        num_classes=num_classes,
         initial_embeddings=initial_embeddings,
+        training_mode=training_mode,
         )
 
-    return (None, classifier_model)
+    return classifier_model
 
 
 
@@ -152,15 +95,9 @@ def build_sentence_pair_model(cls, vocab_size, seq_length, tokens, transitions,
       cls: Hard stack class to use (from e.g. `spinn.fat_stack`)
       vocab_size:
       seq_length: Length of each sequence provided to the stack model
-      tokens: Theano batch (integer matrix), `batch_size * seq_length`
-      transitions: Theano batch (integer matrix), `batch_size * seq_length`
       num_classes: Number of output classes
       training_mode: A Theano scalar indicating whether to act as a training model
         with dropout (1.0) or to act as an eval model with rescaling (0.0).
-      ground_truth_transitions_visible: A Theano scalar. If set (1.0), allow the model access
-        to ground truth transitions. This can be disabled at evaluation time to force Model 1
-        (or 2S) to evaluate in the Model 2 style with predicted transitions. Has no effect on Model 0.
-      vs: Variable store.
     """
 
 
@@ -170,152 +107,15 @@ def build_sentence_pair_model(cls, vocab_size, seq_length, tokens, transitions,
     else:
         raise AssertionError("Need to specify an implemented model.")
 
-    # Split the two sentences
-    # premise_tokens = tokens[:, :, 0]
-    # hypothesis_tokens = tokens[:, :, 1]
-
-    # premise_transitions = transitions[:, :, 0]
-    # hypothesis_transitions = transitions[:, :, 1]
-
-    # Build two hard stack models which scan over input sequences.
-    # premise_model = cls(
-    #     FLAGS.model_dim, FLAGS.word_embedding_dim, vocab_size, seq_length,
-    #     compose_network, embedding_projection_network, training_mode, ground_truth_transitions_visible, vs,
-    #     predict_use_cell=FLAGS.predict_use_cell,
-    #     use_tracking_lstm=FLAGS.use_tracking_lstm,
-    #     tracking_lstm_hidden_dim=FLAGS.tracking_lstm_hidden_dim,
-    #     X=premise_tokens,
-    #     transitions=premise_transitions,
-    #     initial_embeddings=initial_embeddings,
-    #     embedding_dropout_keep_rate=FLAGS.embedding_keep_rate,
-    #     ss_mask_gen=ss_mask_gen,
-    #     ss_prob=ss_prob,
-    #     connect_tracking_comp=FLAGS.connect_tracking_comp,
-    #     context_sensitive_shift=FLAGS.context_sensitive_shift,
-    #     context_sensitive_use_relu=FLAGS.context_sensitive_use_relu,
-    #     initialize_hyp_tracking_state=FLAGS.initialize_hyp_tracking_state)
-
-    # premise_model = cls(
-    #     FLAGS.model_dim,
-    #     FLAGS.word_embedding_dim,
-    #     vocab_size,
-    #     compose_network,
-    #     X=tokens,
-    #     initial_embeddings=initial_embeddings,
-    #     )
-
-    # premise_tracking_c_state_final = premise_model.tracking_c_state_final if cls not in [spinn.plain_rnn.RNN, 
-    #                                                                                         spinn.cbow.CBOW] else None
-    # hypothesis_model = cls(
-    #     FLAGS.model_dim, FLAGS.word_embedding_dim, vocab_size, seq_length,
-    #     compose_network, embedding_projection_network, training_mode, ground_truth_transitions_visible, vs,
-    #     predict_use_cell=FLAGS.predict_use_cell,
-    #     use_tracking_lstm=FLAGS.use_tracking_lstm,
-    #     tracking_lstm_hidden_dim=FLAGS.tracking_lstm_hidden_dim,
-    #     X=hypothesis_tokens,
-    #     transitions=hypothesis_transitions,
-    #     initial_embeddings=initial_embeddings,
-    #     embedding_dropout_keep_rate=FLAGS.embedding_keep_rate,
-    #     ss_mask_gen=ss_mask_gen,
-    #     ss_prob=ss_prob,
-    #     connect_tracking_comp=FLAGS.connect_tracking_comp,
-    #     context_sensitive_shift=FLAGS.context_sensitive_shift,
-    #     context_sensitive_use_relu=FLAGS.context_sensitive_use_relu,
-    #     is_hypothesis=True,
-    #     initialize_hyp_tracking_state=FLAGS.initialize_hyp_tracking_state,
-    #     premise_tracking_c_state_final=premise_tracking_c_state_final)
-
-    # hypothesis_model = cls(
-    #     FLAGS.model_dim,
-    #     FLAGS.word_embedding_dim,
-    #     vocab_size,
-    #     compose_network,
-    #     X=tokens,
-    #     initial_embeddings=initial_embeddings,
-    #     )
-
-    # Extract top element of final stack timestep.
-    # premise_vector = premise_model.final_representations
-    # hypothesis_vector = hypothesis_model.final_representations
-
-    # if (FLAGS.lstm_composition and cls is not spinn.cbow.CBOW) or cls is spinn.plain_rnn.RNN:
-    #     premise_vector = premise_vector[:,:FLAGS.model_dim / 2].reshape((-1, FLAGS.model_dim / 2))
-    #     hypothesis_vector = hypothesis_vector[:,:FLAGS.model_dim / 2].reshape((-1, FLAGS.model_dim / 2))
-    #     sentence_vector_dim = FLAGS.model_dim / 2
-    # else:
-    #     premise_vector = premise_vector.reshape((-1, FLAGS.model_dim))
-    #     hypothesis_vector = hypothesis_vector.reshape((-1, FLAGS.model_dim))
-    #     sentence_vector_dim = FLAGS.model_dim
-
-    # # Create standard MLP features
-    # mlp_input = T.concatenate([premise_vector, hypothesis_vector], axis=1)
-    # mlp_input_dim = 2 * sentence_vector_dim
-
-    # if FLAGS.use_difference_feature:
-    #     mlp_input = T.concatenate([mlp_input, premise_vector - hypothesis_vector], axis=1)
-    #     mlp_input_dim += sentence_vector_dim
-
-    # if FLAGS.use_product_feature:
-    #     mlp_input = T.concatenate([mlp_input, premise_vector * hypothesis_vector], axis=1)
-    #     mlp_input_dim += sentence_vector_dim
-
-    # mlp_input = util.BatchNorm(mlp_input, mlp_input_dim, vs, "sentence_vectors", training_mode)
-    # mlp_input = util.Dropout(mlp_input, FLAGS.semantic_classifier_keep_rate, training_mode)
-
-    # if FLAGS.classifier_type == "ResNet":
-    #     features = util.Linear(
-    #         mlp_input, mlp_input_dim, FLAGS.sentence_pair_combination_layer_dim, vs,
-    #         name="resnet/linear", use_bias=True)
-    #     features_dim = FLAGS.sentence_pair_combination_layer_dim
-
-    #     for layer in range(FLAGS.num_sentence_pair_combination_layers):
-    #         features = util.HeKaimingResidualLayerSet(features, features_dim, vs, training_mode, name="resnet/" + str(layer), 
-    #             dropout_keep_rate=FLAGS.semantic_classifier_keep_rate, depth=FLAGS.resnet_unit_depth, 
-    #             initializer=util.HeKaimingInitializer())
-    #         features = util.BatchNorm(features, features_dim, vs, "combining_mlp/" + str(layer), training_mode)
-    #         features = util.Dropout(features, FLAGS.semantic_classifier_keep_rate, training_mode)
-    # elif FLAGS.classifier_type == "Highway":
-    #     features = util.Linear(
-    #         mlp_input, mlp_input_dim, FLAGS.sentence_pair_combination_layer_dim, vs,
-    #         name="resnet/linear", use_bias=True)
-    #     features_dim = FLAGS.sentence_pair_combination_layer_dim
-
-    #     for layer in range(FLAGS.num_sentence_pair_combination_layers):
-    #         features = util.HighwayLayer(features, features_dim, vs, training_mode, name="highway/" + str(layer), 
-    #             dropout_keep_rate=FLAGS.semantic_classifier_keep_rate,
-    #             initializer=util.HeKaimingInitializer())
-    #         features = util.BatchNorm(features, features_dim, vs, "combining_mlp/" + str(layer), training_mode)
-    #         features = util.Dropout(features, FLAGS.semantic_classifier_keep_rate, training_mode)
-    # else:    
-    #     # Apply a combining MLP
-    #     features = mlp_input
-    #     features_dim = mlp_input_dim
-    #     for layer in range(FLAGS.num_sentence_pair_combination_layers):
-    #         features = util.ReLULayer(features, features_dim, FLAGS.sentence_pair_combination_layer_dim, vs,
-    #             name="combining_mlp/" + str(layer),
-    #             initializer=util.HeKaimingInitializer())
-    #         features_dim = FLAGS.sentence_pair_combination_layer_dim
-
-    #         features = util.BatchNorm(features, features_dim, vs, "combining_mlp/" + str(layer), training_mode)
-    #         features = util.Dropout(features, FLAGS.semantic_classifier_keep_rate, training_mode) 
-
-    # # Feed forward through a single output layer
-    # logits = util.Linear(
-    #     features, features_dim, num_classes, vs,
-    #     name="semantic_classifier", use_bias=True)
-
-    # return premise_model.transitions_pred, hypothesis_model.transitions_pred, logits
-
-    classifier_model = cls(
-        FLAGS.model_dim,
-        FLAGS.word_embedding_dim,
-        vocab_size,
-        compose_network,
-        X=tokens,
+    classifier_model = cls(FLAGS.model_dim, FLAGS.word_embedding_dim, vocab_size, compose_network,
+        seq_length=seq_length,
+        num_classes=num_classes,
         initial_embeddings=initial_embeddings,
+        training_mode=training_mode,
+        use_sentence_pair=True,
         )
 
-    return (None, None, classifier_model)
+    return classifier_model
 
 
 def build_cost(logits, targets):
@@ -606,22 +406,14 @@ def run(only_forward=False):
     logits = None
 
     if data_manager.SENTENCE_PAIR_DATA:
-        # X = T.itensor3("X")
-        # transitions = T.itensor3("transitions")
-        # num_transitions = T.imatrix("num_transitions")
-
-        premise_tranisiton_model, hypothesis_transition_model, classifier_model = build_sentence_pair_model(
+        classifier_model = build_sentence_pair_model(
             model_cls, len(vocabulary), FLAGS.seq_length,
             X, transitions, len(data_manager.LABEL_MAP), training_mode, ground_truth_transitions_visible, vs,
             initial_embeddings=initial_embeddings, project_embeddings=(not train_embeddings),
             ss_mask_gen=ss_mask_gen,
             ss_prob=ss_prob)
     else:
-        # X = T.matrix("X", dtype="int32")
-        # transitions = T.imatrix("transitions")
-        # num_transitions = T.vector("num_transitions", dtype="int32")
-
-        transition_model, classifier_model = build_sentence_model(
+        classifier_model = build_sentence_model(
             model_cls, len(vocabulary), FLAGS.seq_length,
             X, transitions, len(data_manager.LABEL_MAP), training_mode, ground_truth_transitions_visible, vs,
             initial_embeddings=initial_embeddings, project_embeddings=(not train_embeddings),
@@ -736,7 +528,6 @@ def run(only_forward=False):
         for step in range(step, FLAGS.training_steps):
             # if step % FLAGS.eval_interval_steps == 0:
             #     for index, eval_set in enumerate(eval_iterators):
-            #         ipdb.set_trace()
             #         pass
             X_batch, transitions_batch, y_batch, num_transitions_batch = training_data_iter.next()
             learning_rate = FLAGS.learning_rate * (FLAGS.learning_rate_decay_per_10k_steps ** (step / 10000.0))
@@ -746,15 +537,16 @@ def run(only_forward=False):
             y_batch = Variable(y_batch)
             num_transitions_batch = Variable(num_transitions_batch)
 
-            # Hack to get one sentence.
-            _X = X_batch[:, :, 0]
-
+            # Reset hidden states of RNN(s), and reset cached gradients.
             classifier_model.rnn.reset_state()
             classifier_model.model.cleargrads()
-            loss = classifier_model.model(_X, y_batch)
+
+            # Calculate loss and update parameters.
+            loss = classifier_model.model(X_batch, y_batch)
             loss.backward()
             optimizer.update()
 
+            # Accumulate accuracy for current interval.
             acc = classifier_model.model.accuracy
             trailing_acc = np.append([float(acc.data)], trailing_acc[:FLAGS.statistics_interval_steps])
 
