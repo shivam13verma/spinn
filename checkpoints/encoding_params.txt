@@ -1,0 +1,13 @@
+small encoded
+
+01 - bad
+02 - okay
+03 - bad
+04 - okay
+
+big encoded
+
+02 - ...
+04 - ...
+05 - ...
+06 - ...
